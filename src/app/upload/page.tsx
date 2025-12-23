@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { storage, db } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/lib/AuthContext';
 import Link from 'next/link';
+
+const CLOUDINARY_CLOUD_NAME = 'du8xwqzjz';
+const CLOUDINARY_UPLOAD_PRESET = 'plant_share';
 
 export default function UploadPage() {
   const { user, loading } = useAuth();
@@ -38,16 +40,31 @@ export default function UploadPage() {
     setError('');
 
     try {
-      // Upload image to Firebase Storage
-      const storageRef = ref(storage, `photos/${user.uid}/${Date.now()}-${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      // Upload to Cloudinary
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+      const cloudinaryResponse = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!cloudinaryResponse.ok) {
+        throw new Error('Upload to Cloudinary failed');
+      }
+
+      const cloudinaryData = await cloudinaryResponse.json();
+      const imageUrl = cloudinaryData.secure_url;
 
       // Save photo metadata to Firestore
       await addDoc(collection(db, 'photos'), {
         userId: user.uid,
         userEmail: user.email || '',
-        imageUrl: downloadURL,
+        imageUrl: imageUrl,
         caption: caption,
         createdAt: serverTimestamp(),
       });
