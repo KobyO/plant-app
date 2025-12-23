@@ -41,7 +41,7 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('userId', user.uid);
-      formData.append('userEmail', user.email);
+      formData.append('userEmail', user.email || '');
       formData.append('caption', caption);
       formData.append('idToken', await user.getIdToken());
 
