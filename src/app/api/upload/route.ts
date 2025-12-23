@@ -1,15 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getStorage } from 'firebase-admin/storage';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-
-// Initialize Firebase Admin (use service account from environment)
-const apps = getApps();
-if (apps.length === 0) {
-  // For development, we'll use the web SDK approach through a workaround
-  // In production, you'd use a service account key
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,9 +16,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the token with Firebase (optional, for extra security)
-    // This is a basic implementation - in production you'd want to verify the token
-
     // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -38,24 +24,26 @@ export async function POST(request: NextRequest) {
     const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
     const fileName = `photos/${userId}/${Date.now()}-${file.name}`;
 
-    const response = await fetch(
+    const uploadResponse = await fetch(
       `https://www.googleapis.com/upload/storage/v1/b/${storageBucket}/o?uploadType=media&name=${encodeURIComponent(
         fileName
-      )}&access_token=${idToken}`,
+      )}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': file.type || 'application/octet-stream',
+          Authorization: `Bearer ${idToken}`,
         },
         body: buffer,
       }
     );
 
-    if (!response.ok) {
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.text();
+      console.error('Storage upload error:', error);
       throw new Error('Failed to upload to Storage');
     }
 
-    const uploadedFile = await response.json();
     const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(
       fileName
     )}?alt=media`;
@@ -83,6 +71,8 @@ export async function POST(request: NextRequest) {
     );
 
     if (!docResponse.ok) {
+      const error = await docResponse.text();
+      console.error('Firestore error:', error);
       throw new Error('Failed to save photo metadata');
     }
 
