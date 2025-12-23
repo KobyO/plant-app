@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { storage, db } from '@/lib/firebase';
@@ -38,21 +36,19 @@ export default function UploadPage() {
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user.uid);
-      formData.append('userEmail', user.email || '');
-      formData.append('caption', caption);
-      formData.append('idToken', await user.getIdToken());
+      // Upload image to Firebase Storage
+      const storageRef = ref(storage, `photos/${user.uid}/${Date.now()}-${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      // Save photo metadata to Firestore
+      await addDoc(collection(db, 'photos'), {
+        userId: user.uid,
+        userEmail: user.email || '',
+        imageUrl: downloadURL,
+        caption: caption,
+        createdAt: serverTimestamp(),
       });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
 
       setFile(null);
       setCaption('');
